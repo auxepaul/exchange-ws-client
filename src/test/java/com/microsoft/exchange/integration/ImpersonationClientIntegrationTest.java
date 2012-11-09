@@ -23,6 +23,7 @@
 
 package com.microsoft.exchange.integration;
 
+import org.apache.commons.lang.time.StopWatch;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -52,19 +53,28 @@ public class ImpersonationClientIntegrationTest extends AbstractIntegrationTest 
 	private String endDate = "2012-10-12";
 	private int expectedEventCount = 1;
 	
+	/* (non-Javadoc)
+	 * @see com.microsoft.exchange.integration.AbstractIntegrationTest#initializeCredentials()
+	 */
+	@Override
+	public void initializeCredentials() {
+		ConnectingSIDType connectingSID = new ConnectingSIDType();
+		connectingSID.setPrincipalName(emailAddress);
+		ThreadLocalImpersonationConnectingSIDSourceImpl.setConnectingSID(connectingSID);
+	}
 	/**
 	 * Issues a {@link GetUserAvailabilityRequest} for the configured emailAddress, startDate and endDate.
 	 * Verifies a response, and that the freebusy responses match expectedEventCount.
 	 */
 	@Test
-	public void testGetUserAvailability() {
-		ConnectingSIDType connectingSID = new ConnectingSIDType();
-		connectingSID.setPrincipalName(emailAddress);
-		ThreadLocalImpersonationConnectingSIDSourceImpl.setConnectingSID(connectingSID);
-		
+	public void testGetUserAvailability() {	
+		initializeCredentials();
 		GetUserAvailabilityRequest request = constructAvailabilityRequest(DateHelper.makeDate(startDate), DateHelper.makeDate(endDate), emailAddress);
+		StopWatch stopWatch = new StopWatch();
+		stopWatch.start();
 		GetUserAvailabilityResponse response = ewsClient.getUserAvailability(request);
-	
+		stopWatch.stop();
+		log.debug("GetUserAvailability request completed in " + stopWatch);
 		Assert.assertNotNull(response);
 		Assert.assertEquals(expectedEventCount, response.getFreeBusyResponseArray().getFreeBusyResponses().size());
 	}

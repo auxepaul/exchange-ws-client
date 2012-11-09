@@ -25,24 +25,167 @@ package com.microsoft.exchange.integration;
 
 import java.util.Date;
 
+import javax.xml.bind.JAXBElement;
 import javax.xml.datatype.XMLGregorianCalendar;
 
+import org.apache.commons.lang.time.StopWatch;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.junit.Assert;
+import org.junit.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import com.microsoft.exchange.DateHelp;
 import com.microsoft.exchange.DateHelper;
+import com.microsoft.exchange.impl.ExchangeWebServicesClient;
+import com.microsoft.exchange.messages.ArrayOfResponseMessagesType;
+import com.microsoft.exchange.messages.CreateItem;
+import com.microsoft.exchange.messages.CreateItemResponse;
 import com.microsoft.exchange.messages.GetUserAvailabilityRequest;
+import com.microsoft.exchange.messages.ResponseCodeType;
+import com.microsoft.exchange.messages.ResponseMessageType;
 import com.microsoft.exchange.types.ArrayOfMailboxData;
+import com.microsoft.exchange.types.BodyType;
+import com.microsoft.exchange.types.BodyTypeType;
+import com.microsoft.exchange.types.CalendarItemCreateOrDeleteOperationType;
+import com.microsoft.exchange.types.CalendarItemType;
 import com.microsoft.exchange.types.DayOfWeekType;
+import com.microsoft.exchange.types.DistinguishedFolderIdNameType;
+import com.microsoft.exchange.types.DistinguishedFolderIdType;
 import com.microsoft.exchange.types.Duration;
 import com.microsoft.exchange.types.FreeBusyViewOptions;
 import com.microsoft.exchange.types.Mailbox;
 import com.microsoft.exchange.types.MailboxData;
 import com.microsoft.exchange.types.MeetingAttendeeType;
+import com.microsoft.exchange.types.NonEmptyArrayOfAllItemsType;
 import com.microsoft.exchange.types.SerializableTimeZoneTime;
+import com.microsoft.exchange.types.TargetFolderIdType;
 import com.microsoft.exchange.types.TimeZone;
 
 /**
  * @author Nicholas Blair
  */
 public abstract class AbstractIntegrationTest {
+	
+	protected final Log log = LogFactory.getLog(this.getClass());
+	
+	@Autowired
+	protected ExchangeWebServicesClient ewsClient;
+	
+	/**
+	 * This method gets called at the beginning of each integration test method.
+	 * The purpose is for subclasses to set the necessary credentials.
+	 */
+	public abstract void initializeCredentials();
+	
+	/**
+	 * Create a single {@link CalendarItemType} and submit with {@link ExchangeWebServicesClient#createItem(CreateItem)}.
+	 */
+	@Test
+	public void testCreateCalendarItem() {
+		initializeCredentials();
+		
+		CalendarItemType calendarItem = new CalendarItemType();
+		final Date start = DateHelp.parseDateTimePhrase("20121109-1200");
+		final Date end = DateHelp.parseDateTimePhrase("20121109-1300");
+		
+		calendarItem.setStart(DateHelp.convertDateToXMLGregorianCalendar(start));
+		calendarItem.setEnd(DateHelp.convertDateToXMLGregorianCalendar(end));
+		calendarItem.setSubject("integration test: testCreateCalendarItem");
+		calendarItem.setLocation("test location");
+		BodyType body = new BodyType();
+		body.setBodyType(BodyTypeType.TEXT);
+		body.setValue("test ran at " + new Date());
+		calendarItem.setBody(body);
+		
+		CreateItem request = new CreateItem();
+		request.setSendMeetingInvitations(CalendarItemCreateOrDeleteOperationType.SEND_TO_ALL_AND_SAVE_COPY);
+
+		NonEmptyArrayOfAllItemsType arrayOfItems = new NonEmptyArrayOfAllItemsType();
+		arrayOfItems.getItemsAndMessagesAndCalendarItems().add(calendarItem);
+		request.setItems(arrayOfItems);
+		DistinguishedFolderIdType folder = new DistinguishedFolderIdType();
+		folder.setId(DistinguishedFolderIdNameType.CALENDAR);
+		TargetFolderIdType target = new TargetFolderIdType();
+		target.setDistinguishedFolderId(folder);
+		request.setSavedItemFolderId(target);
+		
+		StopWatch stopWatch = new StopWatch();
+		stopWatch.start();
+		CreateItemResponse response = ewsClient.createItem(request);
+		stopWatch.stop();
+		log.debug("CreateItem request (1 CalendarItem) completed in " + stopWatch);
+		Assert.assertNotNull(response);
+		ArrayOfResponseMessagesType responseMessages = response.getResponseMessages();
+		Assert.assertNotNull(responseMessages);
+		Assert.assertEquals(1, responseMessages.getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().size());
+		JAXBElement<? extends ResponseMessageType> m = responseMessages.getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().get(0);
+		Assert.assertEquals(ResponseCodeType.NO_ERROR, m.getValue().getResponseCode());
+	}
+	
+	/**
+	 * Create 3 {@link CalendarItemType}s and submit with 1 {@link ExchangeWebServicesClient#createItem(CreateItem)} invocation.
+	 */
+	@Test
+	public void testCreate3CalendarItems() {
+		initializeCredentials();
+		
+		CalendarItemType item1 = constructCalendarItem(DateHelp.parseDateTimePhrase("20121109-1300"), DateHelp.parseDateTimePhrase("20121109-1400"), 
+				"integration test: testCreate3CalendarItems, item1", "test location", "test ran at " + new Date());
+		CalendarItemType item2 = constructCalendarItem(DateHelp.parseDateTimePhrase("20121109-1400"), DateHelp.parseDateTimePhrase("20121109-1500"), 
+				"integration test: testCreate3CalendarItems, item2", "test location", "test ran at " + new Date());
+		CalendarItemType item3 = constructCalendarItem(DateHelp.parseDateTimePhrase("20121109-1500"), DateHelp.parseDateTimePhrase("20121109-1600"), 
+				"integration test: testCreate3CalendarItems, item3", "test location", "test ran at " + new Date());
+		
+		CreateItem request = new CreateItem();
+		request.setSendMeetingInvitations(CalendarItemCreateOrDeleteOperationType.SEND_TO_ALL_AND_SAVE_COPY);
+
+		NonEmptyArrayOfAllItemsType arrayOfItems = new NonEmptyArrayOfAllItemsType();
+		arrayOfItems.getItemsAndMessagesAndCalendarItems().add(item1);
+		arrayOfItems.getItemsAndMessagesAndCalendarItems().add(item2);
+		arrayOfItems.getItemsAndMessagesAndCalendarItems().add(item3);
+		request.setItems(arrayOfItems);
+		DistinguishedFolderIdType folder = new DistinguishedFolderIdType();
+		folder.setId(DistinguishedFolderIdNameType.CALENDAR);
+		TargetFolderIdType target = new TargetFolderIdType();
+		target.setDistinguishedFolderId(folder);
+		request.setSavedItemFolderId(target);
+		
+		StopWatch stopWatch = new StopWatch();
+		stopWatch.start();
+		CreateItemResponse response = ewsClient.createItem(request);
+		stopWatch.stop();
+		log.debug("CreateItem request (3 CalendarItems) completed in " + stopWatch);
+		Assert.assertNotNull(response);
+		ArrayOfResponseMessagesType responseMessages = response.getResponseMessages();
+		Assert.assertNotNull(responseMessages);
+		Assert.assertEquals(3, responseMessages.getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().size());
+		for(JAXBElement<? extends ResponseMessageType> m : responseMessages.getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages()) {
+			Assert.assertEquals(ResponseCodeType.NO_ERROR, m.getValue().getResponseCode());
+		}
+	}
+	
+	/**
+	 * 
+	 * @param startTime
+	 * @param endTime
+	 * @param subject
+	 * @param location
+	 * @param bodyText
+	 * @return
+	 */
+	protected CalendarItemType constructCalendarItem(Date startTime, Date endTime, String subject, String location, String bodyText) {
+		CalendarItemType calendarItem = new CalendarItemType();
+		calendarItem.setStart(DateHelp.convertDateToXMLGregorianCalendar(startTime));
+		calendarItem.setEnd(DateHelp.convertDateToXMLGregorianCalendar(endTime));
+		calendarItem.setSubject(subject);
+		calendarItem.setLocation(location);
+		BodyType body = new BodyType();
+		body.setBodyType(BodyTypeType.TEXT);
+		body.setValue(bodyText);
+		calendarItem.setBody(body);
+		return calendarItem;
+	}
 	
 	/**
 	 * Technique borrowed from Jasig CalendarPortlet for constructing a

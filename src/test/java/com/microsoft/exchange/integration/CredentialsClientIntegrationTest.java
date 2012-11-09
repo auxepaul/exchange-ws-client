@@ -28,13 +28,11 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.microsoft.exchange.DateHelper;
-import com.microsoft.exchange.impl.ExchangeWebServicesClient;
 import com.microsoft.exchange.impl.http.ThreadLocalCredentialsProviderFactory;
 import com.microsoft.exchange.messages.GetUserAvailabilityRequest;
 import com.microsoft.exchange.messages.GetUserAvailabilityResponse;
@@ -47,9 +45,6 @@ import com.microsoft.exchange.messages.GetUserAvailabilityResponse;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations="classpath:/com/microsoft/exchange/exchangeContext-usingCredentials.xml")
 public class CredentialsClientIntegrationTest extends AbstractIntegrationTest {
-
-	@Autowired
-	private ExchangeWebServicesClient ewsClient;
 	
 	@Value("${username}")
 	private String userName;
@@ -61,15 +56,22 @@ public class CredentialsClientIntegrationTest extends AbstractIntegrationTest {
 	private String endDate = "2012-10-12";
 	private int expectedEventCount = 1;
 	
+	/* (non-Javadoc)
+	 * @see com.microsoft.exchange.integration.AbstractIntegrationTest#initializeCredentials()
+	 */
+	@Override
+	public void initializeCredentials() {
+		Credentials credentials = new UsernamePasswordCredentials(userName, password);
+		ThreadLocalCredentialsProviderFactory.set(credentials);
+	}
+
 	/**
 	 * Issues a {@link GetUserAvailabilityRequest} for the configured emailAddress, startDate and endDate.
 	 * Verifies a response, and that the freebusy responses match expectedEventCount.
 	 */
 	@Test
 	public void testGetUserAvailability() {
-		Credentials credentials = new UsernamePasswordCredentials(userName, password);
-		ThreadLocalCredentialsProviderFactory.set(credentials);
-		
+		initializeCredentials();
 		GetUserAvailabilityRequest request = constructAvailabilityRequest(DateHelper.makeDate(startDate), DateHelper.makeDate(endDate), emailAddress);
 		GetUserAvailabilityResponse response = ewsClient.getUserAvailability(request);
 	
