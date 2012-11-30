@@ -1,24 +1,17 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>edu.wisc.wisccal</groupId>
+	<groupId>com.github.nblair</groupId>
 	<artifactId>exchange-ws-client</artifactId>
 	<version>0.0.2-SNAPSHOT</version>
 	<name>Exchange Web Services client</name>
 	<description>Client for Microsoft Exchange Web Services</description>
 
 	<parent>
-		<groupId>edu.wisc.doit.code</groupId>
-		<artifactId>shared-tools-public-parent</artifactId>
-		<version>3</version>
+		<groupId>org.sonatype.oss</groupId>
+		<artifactId>oss-parent</artifactId>
+		<version>7</version>
 	</parent>
-
-	<repositories>
-		<repository>
-			<id>code.doit-public-releases</id>
-			<url>https://code.doit.wisc.edu/maven/content/repositories/public-releases/</url>
-		</repository>
-	</repositories>
 
 	<scm>
 		<connection>scm:git:git@github.com:nblair/exchange-ws-client.git</connection>
@@ -175,6 +168,40 @@
 	</dependencies>
 
 	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>com.mycila.maven-license-plugin</groupId>
+					<artifactId>maven-license-plugin</artifactId>
+					<version>1.9.0</version>
+					<configuration>
+						<basedir>${basedir}</basedir>
+						<header>short-license-header.txt</header>
+						<strictCheck>true</strictCheck>
+						<excludes>
+							<exclude>short-license-header.txt</exclude>
+							<exclude>README.md</exclude>
+							<exclude>LICENSE</exclude>
+							<exclude>NOTICE</exclude>
+							<exclude>.gitignore</exclude>
+							<exclude>bootstrap/**</exclude>
+							<exclude>src/main/binding/bindings.xjb</exclude>
+							<exclude>src/main/xsd/messages.xsd</exclude>
+							<exclude>src/main/xsd/types.xsd</exclude>
+						</excludes>
+					</configuration>
+					<executions>
+						<execution>
+							<id>check-license</id>
+							<phase>validate</phase>
+							<goals>
+								<goal>check</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+			</plugins>
+		</pluginManagement>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -231,22 +258,6 @@
 						<version>2.2.1</version>
 					</dependency>
 				</dependencies>
-			</plugin>
-			<plugin>
-				<groupId>com.mycila.maven-license-plugin</groupId>
-				<artifactId>maven-license-plugin</artifactId>
-				<configuration>
-					<excludes>
-						<exclude>README.md</exclude>
-						<exclude>LICENSE</exclude>
-						<exclude>NOTICE</exclude>
-						<exclude>.gitignore</exclude>
-						<exclude>bootstrap/**</exclude>
-						<exclude>src/main/binding/bindings.xjb</exclude>
-						<exclude>src/main/xsd/messages.xsd</exclude>
-						<exclude>src/main/xsd/types.xsd</exclude>
-					</excludes>
-				</configuration>
 			</plugin>
 		</plugins>
 	</build>
