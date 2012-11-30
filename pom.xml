@@ -19,19 +19,12 @@
 		<url>https://github.com/nblair/exchange-ws-client</url>
 	</scm>
 
-	<distributionManagement>
-		<repository>
-			<id>code.doit-public-releases</id>
-			<name>code.doit Public Releases</name>
-			<url>https://code.doit.wisc.edu/maven/content/repositories/public-releases</url>
-		</repository>
-		<snapshotRepository>
-			<id>code.doit-public-snapshots</id>
-			<name>code.doit Public Snapshots</name>
-			<url>https://code.doit.wisc.edu/maven/content/repositories/public-snapshots</url>
-		</snapshotRepository>
-	</distributionManagement>
-
+	<licenses>
+		<license>
+			<name>Apache License, Version 2.0</name>
+			<url>https://www.apache.org/licenses/LICENSE-2.0</url>
+		</license>
+	</licenses>
 	<developers>
 		<developer>
 			<email>npblair@wisc.edu</email>
@@ -183,6 +176,7 @@
 							<exclude>README.md</exclude>
 							<exclude>LICENSE</exclude>
 							<exclude>NOTICE</exclude>
+							<exclude>NOTICE.template</exclude>
 							<exclude>.gitignore</exclude>
 							<exclude>bootstrap/**</exclude>
 							<exclude>src/main/binding/bindings.xjb</exclude>
@@ -199,6 +193,18 @@
 							</goals>
 						</execution>
 					</executions>
+				</plugin>
+				<plugin>
+					<groupId>org.jasig.maven</groupId>
+					<artifactId>maven-notice-plugin</artifactId>
+					<version>1.0.5</version>
+					<configuration>
+						<noticeTemplate>${basedir}/NOTICE.template</noticeTemplate>
+						<licenseMapping>
+							<param>https://source.jasig.org/licenses/license-mappings.xml</param>
+						</licenseMapping>
+
+					</configuration>
 				</plugin>
 			</plugins>
 		</pluginManagement>
