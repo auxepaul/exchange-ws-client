@@ -22,30 +22,32 @@
 
 package com.microsoft.exchange.integration;
 
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
+
 import org.apache.commons.lang.time.StopWatch;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.microsoft.exchange.DateHelper;
-import com.microsoft.exchange.impl.ExchangeWebServicesClient;
 import com.microsoft.exchange.impl.ThreadLocalImpersonationConnectingSIDSourceImpl;
+import com.microsoft.exchange.messages.FindItem;
+import com.microsoft.exchange.messages.FindItemResponse;
 import com.microsoft.exchange.messages.GetUserAvailabilityRequest;
 import com.microsoft.exchange.messages.GetUserAvailabilityResponse;
 import com.microsoft.exchange.types.ConnectingSIDType;
 
 /**
+ * Integration test that depends on the Impersonation technique.
+ * 
  * @author Nicholas Blair
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations="classpath:/com/microsoft/exchange/exchangeContext-usingImpersonation.xml")
 public class ImpersonationClientIntegrationTest extends AbstractIntegrationTest {
-
-	@Autowired
-	private ExchangeWebServicesClient ewsClient;
 	
 	private String emailAddress = "npblair@office-test.doit.wisc.edu";
 	private String startDate = "2012-10-11";
@@ -77,5 +79,23 @@ public class ImpersonationClientIntegrationTest extends AbstractIntegrationTest 
 		Assert.assertNotNull(response);
 		Assert.assertEquals(expectedEventCount, response.getFreeBusyResponseArray().getFreeBusyResponses().size());
 	}
-	
+	/**
+	 * Similar to {@link #testGetUserAvailability()}, but uses {@link FindItem}.
+	 * 
+	 * @throws JAXBException
+	 */
+	@Test
+	public void testFindItemCalendarType() throws JAXBException {
+		initializeCredentials();
+		FindItem request = constructFindItemRequest(DateHelper.makeDate(startDate), DateHelper.makeDate(endDate), emailAddress);
+		StopWatch stopWatch = new StopWatch();
+		stopWatch.start();
+		FindItemResponse response = ewsClient.findItem(request);
+		Marshaller marshaller = jaxbContext.createMarshaller();
+		marshaller.marshal(response, System.out);
+		stopWatch.stop();
+		log.debug("FindItem request completed in " + stopWatch);
+		Assert.assertNotNull(response);
+		Assert.assertEquals(expectedEventCount, response.getResponseMessages().getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().size());
+	}
 }

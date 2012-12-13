@@ -56,6 +56,9 @@ public class DateHelp {
 	 * @throws IllegalArgumentException
 	 */
 	public static Date parseDateTimePhrase(final String timePhrase) {
+		if(timePhrase == null) {
+			return null;
+		}
 		try {
 			Date time = getDateTimeFormat().parse(timePhrase);
 			time = DateUtils.truncate(time, Calendar.MINUTE);
@@ -71,6 +74,9 @@ public class DateHelp {
 	 * @return
 	 */
 	public static XMLGregorianCalendar convertDateToXMLGregorianCalendar(final Date date) {
+		if(date == null) {
+			return null;
+		}
 		GregorianCalendar calendar = new GregorianCalendar();
 		calendar.setTime(date);
 		try {
