@@ -54,15 +54,6 @@
 			<bean class="com.microsoft.exchange.impl.ThreadLocalImpersonationConnectingSIDSourceImpl"/>
 		</property>
 	</bean>
-	<bean id="messageSender" class="org.springframework.ws.transport.http.HttpComponentsMessageSender">
-		<property name="connectionTimeout" value="1200000" />
-		<property name="readTimeout" value="1200000" />
-		<property name="credentials">
-			<bean class="org.apache.http.auth.UsernamePasswordCredentials">
-				<constructor-arg index="0" value="${username}"/>
-				<constructor-arg index="1" value="${password}"/>
-			</bean>
-		</property>
-	</bean>
+	<import resource="exchangeContext-httpMessageSender.xml"/>
 
 </beans>

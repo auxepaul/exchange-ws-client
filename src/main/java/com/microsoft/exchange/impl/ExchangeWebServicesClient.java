@@ -119,6 +119,10 @@ import com.microsoft.exchange.messages.UpdateItemResponse;
  */
 public class ExchangeWebServicesClient extends WebServiceGatewaySupport implements ExchangeWebServices {
 
+	/**
+	 * This appears as the message of a SoapFault in the event the client encounters throttle policy limits.
+	 */
+	protected static final String RETRY_ERROR_MESSAGE = "The server cannot service this request right now. Try again later.";
 	protected final Log log = LogFactory.getLog(this.getClass());
 	
 	private KeyStore keyStore;
@@ -507,13 +511,7 @@ public class ExchangeWebServicesClient extends WebServiceGatewaySupport implemen
 	 * @return
 	 */
 	protected Object internalInvoke(Object request) {
-		try {
-			Object result = getWebServiceTemplate().marshalSendAndReceive(request);
-			return result;
-		} catch (SoapFaultClientException e) {
-			log.error("SoapFaultClientException encountered for " + request, e);
-			throw new ExchangeWebServicesRuntimeException(e);
-		}
+		return internalInvoke(request, null);
 	}
 	
 	/**
@@ -523,7 +521,12 @@ public class ExchangeWebServicesClient extends WebServiceGatewaySupport implemen
 	 */
 	protected Object internalInvoke(Object request, WebServiceMessageCallback callback) {
 		try {
-			Object result = getWebServiceTemplate().marshalSendAndReceive(request, callback);
+			Object result;
+			if(null == callback) {
+				result = getWebServiceTemplate().marshalSendAndReceive(request);
+			} else {
+				result = getWebServiceTemplate().marshalSendAndReceive(request, callback);
+			}
 			return result;
 		} catch (SoapFaultClientException e) {
 			log.error("SoapFaultClientException encountered for " + request, e);

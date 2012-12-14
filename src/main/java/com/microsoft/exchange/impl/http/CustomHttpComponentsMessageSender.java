@@ -28,11 +28,15 @@ import org.apache.http.auth.AuthScheme;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.protocol.ClientContext;
+import org.apache.http.conn.ClientConnectionManager;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.auth.DigestScheme;
+import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
 import org.apache.http.protocol.BasicHttpContext;
 import org.apache.http.protocol.HttpContext;
 import org.springframework.ws.transport.http.HttpComponentsMessageSender;
+
+import com.microsoft.exchange.impl.ExchangeOnlineThrottlingPolicy;
 
 /**
  * @author Nicholas Blair
@@ -45,6 +49,19 @@ public class CustomHttpComponentsMessageSender extends
 	private CredentialsProviderFactory credentialsProviderFactory = new ThreadLocalCredentialsProviderFactory();
 	// preemptiveAuthScheme set by #afterPropertiesSet if enabled
 	private AuthScheme preemptiveAuthScheme;
+	private Integer defaultMaxPerRouteOverride;
+	/**
+	 * @return the defaultMaxPerRouteOverride
+	 */
+	public Integer getDefaultMaxPerRouteOverride() {
+		return defaultMaxPerRouteOverride;
+	}
+	/**
+	 * @param defaultMaxPerRouteOverride the defaultMaxPerRouteOverride to set
+	 */
+	public void setDefaultMaxPerRouteOverride(Integer defaultMaxPerRouteOverride) {
+		this.defaultMaxPerRouteOverride = defaultMaxPerRouteOverride;
+	}
 	/**
 	 * @return the preemptiveAuthEnabled
 	 */
@@ -91,6 +108,39 @@ public class CustomHttpComponentsMessageSender extends
 		if(isPreemptiveAuthEnabled()) {
 			this.preemptiveAuthScheme = identifyScheme(getPreemptiveAuthScope().getScheme());
 		}
+		boolean overrideSuccess = false;
+		if(defaultMaxPerRouteOverride != null) {
+			overrideSuccess = this.overrideDefaultMaxPerRoute(defaultMaxPerRouteOverride);
+		}
+		
+		if(overrideSuccess && defaultMaxPerRouteOverride > ExchangeOnlineThrottlingPolicy.MAX_CONCURRENT_CONNECTIONS_IMPERSONATION) {
+			logger.info("defaultMaxPerRoute is being set to " + defaultMaxPerRouteOverride + " which is in excess of ExchangeOnline's default throttling policy. You may experience regular failed requests when the limit for concurrent connections (" + ExchangeOnlineThrottlingPolicy.MAX_CONCURRENT_CONNECTIONS_IMPERSONATION + " for impersonation) is exceeded ");
+		}
+	}
+	protected Integer getMaxTotalConnections() {
+		ClientConnectionManager connectionManager = getHttpClient().getConnectionManager();
+        if (connectionManager instanceof ThreadSafeClientConnManager) {
+        	return ((ThreadSafeClientConnManager) connectionManager).getMaxTotal();
+        }
+        
+        return null;
+	}
+	/**
+	 * Method to expose {@link ThreadSafeClientConnManager#setDefaultMaxPerRoute(int)} 
+	 * Only sets the value if the {@link #getHttpClient()} is configured with a {@link ThreadSafeClientConnManager}.
+	 * 
+	 * @param defaultMaxPerRoute
+	 * @return true if the property was set
+	 */
+	protected boolean overrideDefaultMaxPerRoute(int defaultMaxPerRoute) {
+		ClientConnectionManager connectionManager = getHttpClient().getConnectionManager();
+		if(connectionManager instanceof ThreadSafeClientConnManager) {
+			((ThreadSafeClientConnManager) connectionManager).setDefaultMaxPerRoute(defaultMaxPerRoute);
+			return true;
+		} else {
+			logger.error("ignoring call to overrideDefaultMaxPerRoute as existing ClientConnectionManager is not an instance of ThreadSafeClientConnManager: " + connectionManager.getClass());
+			return false;
+		}
 	}
 	/**
 	 * 
@@ -112,17 +162,19 @@ public class CustomHttpComponentsMessageSender extends
 	 */
 	@Override
 	protected HttpContext createContext(URI uri) {
-		HttpContext context = new BasicHttpContext();
 		if(isPreemptiveAuthEnabled()) {
+			HttpContext context = new BasicHttpContext();
 			if(preemptiveAuthScheme == null) {
 				throw new IllegalStateException("preemptiveAuth is enabled, but the preemptiveAuthScheme is null. Was afterPropertiesSet invoked?");
 			}
 			context.setAttribute(PreemptiveAuthInterceptor.PREEMPTIVE_AUTH, preemptiveAuthScheme);
+			CredentialsProvider credentialsProvider = getCredentialsProviderFactory().getCredentialsProvider(uri);
+			context.setAttribute(ClientContext.CREDS_PROVIDER, credentialsProvider);
+			return context;
+		} else {
+			return super.createContext(uri);
 		}
-		
-		CredentialsProvider credentialsProvider = getCredentialsProviderFactory().getCredentialsProvider(uri);
-		context.setAttribute(ClientContext.CREDS_PROVIDER, credentialsProvider);
-		return context;
 	}
+		
 
 }

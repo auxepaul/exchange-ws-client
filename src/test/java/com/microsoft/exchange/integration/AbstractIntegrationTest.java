@@ -23,7 +23,6 @@
 package com.microsoft.exchange.integration;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.Date;
 
 import javax.xml.bind.JAXBContext;
@@ -42,6 +41,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.microsoft.exchange.DateHelp;
 import com.microsoft.exchange.DateHelper;
 import com.microsoft.exchange.ExchangeWebServices;
+import com.microsoft.exchange.impl.ExchangeOnlineThrottlingPolicy;
 import com.microsoft.exchange.impl.ExchangeWebServicesClient;
 import com.microsoft.exchange.messages.ArrayOfResponseMessagesType;
 import com.microsoft.exchange.messages.CreateItem;
@@ -138,11 +138,11 @@ public abstract class AbstractIntegrationTest {
 			stopWatch.start();
 			CreateItemResponse response = ewsClient.createItem(request);
 			stopWatch.stop();
-			log.debug("CreateItem request (1 CalendarItem) completed in " + stopWatch);
-			Marshaller marshaller = jaxbContext.createMarshaller();
-			marshaller.marshal(response, System.out);
-
 			Assert.assertNotNull(response);
+			String captured = capture(response);
+			log.debug("CreateItem request (1 CalendarItem) completed in " + stopWatch + ", response: " + captured);
+
+			
 			ArrayOfResponseMessagesType responseMessages = response.getResponseMessages();
 			Assert.assertNotNull(responseMessages);
 			Assert.assertEquals(1, responseMessages.getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().size());
@@ -247,15 +247,11 @@ public abstract class AbstractIntegrationTest {
 			ByteArrayOutputStream stream = new ByteArrayOutputStream();
 			Marshaller marshaller = jaxbContext.createMarshaller();
 			marshaller.marshal(jaxbElement, stream);
-			stream.close();
 			return stream.toString();
 		} catch (JAXBException e) {
 			log.error("failed to marshal response " + jaxbElement, e);
 			throw new IllegalStateException();
-		} catch (IOException e) {
-			log.error("unexpected IOException for " + jaxbElement, e);
-			throw new IllegalStateException();
-		}
+		} 
 
 	}
 	/**
@@ -364,11 +360,12 @@ public abstract class AbstractIntegrationTest {
 		CalendarViewType calendarView = new CalendarViewType();
 		calendarView.setStartDate(DateHelp.convertDateToXMLGregorianCalendar(startTime));
 		calendarView.setEndDate(DateHelp.convertDateToXMLGregorianCalendar(endTime));
-		calendarView.setMaxEntriesReturned(1000);
+		calendarView.setMaxEntriesReturned(ExchangeOnlineThrottlingPolicy.FIND_ITEM_MAX_ENTRIES_RETURNED);
 		findItem.setCalendarView(calendarView);
 		findItem.setTraversal(ItemQueryTraversalType.SHALLOW);
 		ItemResponseShapeType responseShape = new ItemResponseShapeType();
-		responseShape.setBaseShape(DefaultShapeNamesType.DEFAULT);
+		// there is a large difference in the properties set returned by the DEFAULT shape type
+		responseShape.setBaseShape(DefaultShapeNamesType.ALL_PROPERTIES);
 		findItem.setItemShape(responseShape);
 		NonEmptyArrayOfBaseFolderIdsType array = new NonEmptyArrayOfBaseFolderIdsType();
 		DistinguishedFolderIdType folderId = new DistinguishedFolderIdType();

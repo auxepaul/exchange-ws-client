@@ -23,7 +23,6 @@
 package com.microsoft.exchange.integration;
 
 import javax.xml.bind.JAXBException;
-import javax.xml.bind.Marshaller;
 
 import org.apache.commons.lang.time.StopWatch;
 import org.junit.Assert;
@@ -91,8 +90,26 @@ public class ImpersonationClientIntegrationTest extends AbstractIntegrationTest 
 		StopWatch stopWatch = new StopWatch();
 		stopWatch.start();
 		FindItemResponse response = ewsClient.findItem(request);
-		Marshaller marshaller = jaxbContext.createMarshaller();
-		marshaller.marshal(response, System.out);
+		stopWatch.stop();
+		log.debug("FindItem request completed in " + stopWatch);
+		Assert.assertNotNull(response);
+		Assert.assertEquals(expectedEventCount, response.getResponseMessages().getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().size());
+	}
+	
+	/**
+	 * Similar to {@link #testGetUserAvailability()}, but uses {@link FindItem}.
+	 * 
+	 * @throws JAXBException
+	 */
+	@Test
+	public void testFindMoreDetailedItemCalendarType() throws JAXBException {
+		initializeCredentials();
+		FindItem request = constructFindItemRequest(DateHelper.makeDate("2012-10-12"), DateHelper.makeDate("2012-10-13"), emailAddress);
+		StopWatch stopWatch = new StopWatch();
+		stopWatch.start();
+		FindItemResponse response = ewsClient.findItem(request);
+		String captured = capture(response);
+		log.info("testFindMoreDetailedItemCalendarType response: " + captured);
 		stopWatch.stop();
 		log.debug("FindItem request completed in " + stopWatch);
 		Assert.assertNotNull(response);
