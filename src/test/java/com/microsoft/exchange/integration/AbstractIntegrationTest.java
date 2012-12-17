@@ -53,13 +53,18 @@ import com.microsoft.exchange.messages.GetUserAvailabilityRequest;
 import com.microsoft.exchange.messages.ItemInfoResponseMessageType;
 import com.microsoft.exchange.messages.ResponseCodeType;
 import com.microsoft.exchange.messages.ResponseMessageType;
+import com.microsoft.exchange.messages.UpdateItem;
+import com.microsoft.exchange.messages.UpdateItemResponse;
 import com.microsoft.exchange.types.ArrayOfMailboxData;
 import com.microsoft.exchange.types.ArrayOfRealItemsType;
+import com.microsoft.exchange.types.BasePathToElementType;
 import com.microsoft.exchange.types.BodyType;
 import com.microsoft.exchange.types.BodyTypeType;
 import com.microsoft.exchange.types.CalendarItemCreateOrDeleteOperationType;
 import com.microsoft.exchange.types.CalendarItemType;
+import com.microsoft.exchange.types.CalendarItemUpdateOperationType;
 import com.microsoft.exchange.types.CalendarViewType;
+import com.microsoft.exchange.types.ConflictResolutionType;
 import com.microsoft.exchange.types.DayOfWeekType;
 import com.microsoft.exchange.types.DefaultShapeNamesType;
 import com.microsoft.exchange.types.DisposalType;
@@ -68,6 +73,7 @@ import com.microsoft.exchange.types.DistinguishedFolderIdType;
 import com.microsoft.exchange.types.Duration;
 import com.microsoft.exchange.types.EmailAddressType;
 import com.microsoft.exchange.types.FreeBusyViewOptions;
+import com.microsoft.exchange.types.ItemChangeType;
 import com.microsoft.exchange.types.ItemQueryTraversalType;
 import com.microsoft.exchange.types.ItemResponseShapeType;
 import com.microsoft.exchange.types.ItemType;
@@ -77,9 +83,15 @@ import com.microsoft.exchange.types.MeetingAttendeeType;
 import com.microsoft.exchange.types.NonEmptyArrayOfAllItemsType;
 import com.microsoft.exchange.types.NonEmptyArrayOfBaseFolderIdsType;
 import com.microsoft.exchange.types.NonEmptyArrayOfBaseItemIdsType;
+import com.microsoft.exchange.types.NonEmptyArrayOfItemChangeDescriptionsType;
+import com.microsoft.exchange.types.NonEmptyArrayOfItemChangesType;
+import com.microsoft.exchange.types.ObjectFactory;
+import com.microsoft.exchange.types.PathToUnindexedFieldType;
 import com.microsoft.exchange.types.SerializableTimeZoneTime;
+import com.microsoft.exchange.types.SetItemFieldType;
 import com.microsoft.exchange.types.TargetFolderIdType;
 import com.microsoft.exchange.types.TimeZone;
+import com.microsoft.exchange.types.UnindexedFieldURIType;
 
 /**
  * @author Nicholas Blair
@@ -209,6 +221,116 @@ public abstract class AbstractIntegrationTest {
 		} finally {
 			deleteItems(createdIds);
 		}
+	}
+	
+	/**
+	 * Create a single {@link CalendarItemType} and submit with {@link ExchangeWebServicesClient#createItem(CreateItem)}.
+	 * Then attempt to update the item with {@link ExchangeWebServices#updateItem(com.microsoft.exchange.messages.UpdateItem)}.
+	 * 
+	 * @throws JAXBException 
+	 */
+	@Test
+	public void testUpdateCalendarItemChangeLocation() throws JAXBException {
+		NonEmptyArrayOfBaseItemIdsType createdIds = new NonEmptyArrayOfBaseItemIdsType();
+		try {
+			initializeCredentials();
+
+			CalendarItemType calendarItem = new CalendarItemType();
+			final Date start = DateHelp.parseDateTimePhrase("20121217-1200");
+			final Date end = DateHelp.parseDateTimePhrase("20121217-1300");
+
+			calendarItem.setStart(DateHelp.convertDateToXMLGregorianCalendar(start));
+			calendarItem.setEnd(DateHelp.convertDateToXMLGregorianCalendar(end));
+			calendarItem.setSubject("integration test: testCreateCalendarItem");
+			calendarItem.setLocation("test location");
+			BodyType body = new BodyType();
+			body.setBodyType(BodyTypeType.TEXT);
+			body.setValue("test ran at " + new Date());
+			calendarItem.setBody(body);
+
+			CreateItem request = new CreateItem();
+			request.setSendMeetingInvitations(CalendarItemCreateOrDeleteOperationType.SEND_TO_ALL_AND_SAVE_COPY);
+
+			NonEmptyArrayOfAllItemsType arrayOfItems = new NonEmptyArrayOfAllItemsType();
+			arrayOfItems.getItemsAndMessagesAndCalendarItems().add(calendarItem);
+			request.setItems(arrayOfItems);
+			DistinguishedFolderIdType folder = new DistinguishedFolderIdType();
+			folder.setId(DistinguishedFolderIdNameType.CALENDAR);
+			TargetFolderIdType target = new TargetFolderIdType();
+			target.setDistinguishedFolderId(folder);
+			request.setSavedItemFolderId(target);
+
+			StopWatch stopWatch = new StopWatch();
+			stopWatch.start();
+			CreateItemResponse response = ewsClient.createItem(request);
+			stopWatch.stop();
+			Assert.assertNotNull(response);
+			String captured = capture(response);
+			log.debug("CreateItem request (1 CalendarItem) completed in " + stopWatch + ", response: " + captured);
+
+			
+			ArrayOfResponseMessagesType responseMessages = response.getResponseMessages();
+			Assert.assertNotNull(responseMessages);
+			Assert.assertEquals(1, responseMessages.getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().size());
+			JAXBElement<? extends ResponseMessageType> m = responseMessages.getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().get(0);
+			Assert.assertEquals(ResponseCodeType.NO_ERROR, m.getValue().getResponseCode());
+
+			ItemInfoResponseMessageType itemType = (ItemInfoResponseMessageType) m.getValue();
+			ArrayOfRealItemsType itemArray = itemType.getItems();
+			ItemType item = itemArray.getItemsAndMessagesAndCalendarItems().get(0);
+			createdIds.getItemIdsAndOccurrenceItemIdsAndRecurringMasterItemIds().add(item.getItemId());
+
+			// leaf
+			CalendarItemType updatedItem = new CalendarItemType();
+			updatedItem.setLocation("new location from testUpdateCalendarItem");
+			// 1: parent of leaf
+			SetItemFieldType changeDescription = new SetItemFieldType();
+			PathToUnindexedFieldType path = new PathToUnindexedFieldType();
+			
+			path.setFieldURI(UnindexedFieldURIType.CALENDAR_LOCATION);
+			changeDescription.setPath(objectFactoryCreatePath(path));
+			changeDescription.setCalendarItem(updatedItem);
+			
+			// 2: parent of 1
+			NonEmptyArrayOfItemChangeDescriptionsType updates = new NonEmptyArrayOfItemChangeDescriptionsType();
+			updates.getAppendToItemFieldsAndSetItemFieldsAndDeleteItemFields().add(changeDescription);
+			// 3: parent of 2
+			ItemChangeType change = new ItemChangeType();
+			change.setItemId(item.getItemId());
+			change.setUpdates(updates);
+			// 4: parent of 3
+			NonEmptyArrayOfItemChangesType changes = new NonEmptyArrayOfItemChangesType();
+			changes.getItemChanges().add(change);
+			
+			UpdateItem updateRequest = new UpdateItem();
+			updateRequest.setSendMeetingInvitationsOrCancellations(CalendarItemUpdateOperationType.SEND_ONLY_TO_CHANGED);
+			// conflict resolution is required
+			updateRequest.setConflictResolution(ConflictResolutionType.AUTO_RESOLVE);
+			updateRequest.setItemChanges(changes);
+			
+			log.debug("sending UpdateItem request: " + capture(updateRequest));
+			UpdateItemResponse updateResponse = this.ewsClient.updateItem(updateRequest);
+			captured = capture(updateResponse);
+			log.debug("UpdateItem request (1 CalendarItem) completed, response: " + captured);
+			ArrayOfResponseMessagesType updateMessages = updateResponse.getResponseMessages();
+			Assert.assertNotNull(updateMessages);
+			Assert.assertEquals(1, updateMessages.getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().size());
+			JAXBElement<? extends ResponseMessageType> u = updateMessages.getCreateItemResponseMessagesAndDeleteItemResponseMessagesAndGetItemResponseMessages().get(0);
+			Assert.assertEquals(ResponseCodeType.NO_ERROR, u.getValue().getResponseCode());
+		} finally {
+			deleteItems(createdIds);
+		}
+	}
+	
+	/**
+	 * Wraps a call to {@link ObjectFactory#createPath(BasePathToElementType)}.
+	 * 
+	 * @param path
+	 * @return
+	 */
+	protected JAXBElement<? extends BasePathToElementType> objectFactoryCreatePath(PathToUnindexedFieldType path) {
+		ObjectFactory of = new ObjectFactory();
+		return of.createPath(path);
 	}
 
 	/**
